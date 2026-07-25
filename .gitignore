@@ -1,0 +1,25 @@
+# Local configuration
+backup.conf
+
+# Runtime logs
+logs/*
+!logs/.gitkeep
+
+# Runtime status, locks, and temporary files
+data/*
+!data/.gitkeep
+
+# Backup and transfer artifacts
+*.tar.gz
+*.tar.gz.partial
+*.nosync
+
+# SMB credential files
+.smbcredentials*
+smb-credentials
+*.credentials
+
+# Editor and operating-system files
+.DS_Store
+*.swp
+*~

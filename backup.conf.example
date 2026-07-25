@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+# Navnet på værten. Navnet indgår i backupfilens eksisterende filnavn.
+HOST_NAME="example-host"
+
+# Mappen hvor lokale backup-arkiver oprettes og afventer overførsel.
+BACKUP_DIR="/path/to/local-backups"
+
+# Mapper der skal sikkerhedskopieres.
+# Mapper, der ikke findes, bliver sprunget over med en advarsel.
+# Undgå at medtage undermapper separat, hvis deres overmappe allerede er med.
+SOURCE_DIRS=(
+    "/path/to/source-directory"
+#    "/path/to/another-source"
+)
+
+# SMB-sharet som lokale backup-arkiver overføres til.
+REMOTE_SHARE="//smb-server/share"
+
+# Det lokale mountpunkt som bruges til SMB-sharet.
+MOUNT_POINT="/path/to/mount-point"
+
+# Filen med brugernavn og adgangskode til SMB-sharet.
+CREDENTIALS_FILE="/path/to/smb-credentials"
+
+# Antallet af eksterne backup-arkiver der skal bevares.
+RETENTION_COUNT=4
+
+# Mappen hvor backup- og transfer-logfiler gemmes.
+LOG_DIR="${SCRIPT_DIR}/logs"
+
+# Mappen hvor Homarr-kompatible statusdata gemmes.
+DATA_DIR="${SCRIPT_DIR}/data"
+
+# Låsefilen som forhindrer flere samtidige lokale backup-job.
+BACKUP_LOCK_FILE="/run/lock/backup-create.lock"
+
+# Låsefilen som forhindrer flere samtidige transfer-job.
+TRANSFER_LOCK_FILE="/run/lock/backup-transfer.lock"
+
+# Mountindstillingerne til SMB-sharet, inklusive adgangsfil og filrettigheder.
+MOUNT_OPTIONS="credentials=${CREDENTIALS_FILE},vers=3.0,iocharset=utf8,uid=0,gid=0,file_mode=0600,dir_mode=0700"

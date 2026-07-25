@@ -3,14 +3,14 @@
 set -uo pipefail
 
 # ------------------------------------------------------------
-# Overfør lokale backups til en ekstern destination via SMB
+# Transfer local backups to an external destination via SMB
 # ------------------------------------------------------------
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/backup.conf"
 
 if [[ ! -r "$CONFIG_FILE" ]]; then
-    printf 'FEJL: Konfigurationsfilen findes ikke eller kan ikke læses: %s\n' \
+    printf 'ERROR: The configuration file does not exist or cannot be read: %s\n' \
         "$CONFIG_FILE" >&2
     exit 1
 fi
@@ -32,14 +32,14 @@ REQUIRED_CONFIG_VALUES=(
 
 for config_value in "${REQUIRED_CONFIG_VALUES[@]}"; do
     if [[ -z "${!config_value:-}" ]]; then
-        printf 'FEJL: Den krævede konfigurationsværdi mangler: %s\n' \
+        printf 'ERROR: The required configuration value is missing: %s\n' \
             "$config_value" >&2
         exit 1
     fi
 done
 
 if [[ ! "$RETENTION_COUNT" =~ ^[1-9][0-9]*$ ]]; then
-    printf 'FEJL: RETENTION_COUNT skal være et positivt heltal større end nul.\n' >&2
+    printf 'ERROR: RETENTION_COUNT must be a positive integer greater than zero.\n' >&2
     exit 1
 fi
 
@@ -71,10 +71,10 @@ log() {
 
 cleanup() {
     if [[ "$MOUNTED_BY_SCRIPT" == true ]] && mountpoint -q "$MOUNT_POINT"; then
-        log "Afmonterer SMB-sharet."
+        log "Unmounting the SMB share."
 
         if ! umount "$MOUNT_POINT"; then
-            log "ADVARSEL: SMB-sharet kunne ikke afmonteres."
+            log "WARNING: The SMB share could not be unmounted."
         fi
     fi
 }
@@ -82,34 +82,34 @@ cleanup() {
 set_failed_status() {
     "$STATUS_UPDATER" \
         overall_status=failed \
-        last_backup_result="Overførsel til SMB-destinationen fejlede" \
+        last_backup_result="Transfer to the SMB destination failed" \
         pending_transfer=true \
         updated="$(date '+%Y-%m-%d %H:%M')"
 }
 
 
 trap cleanup EXIT
-trap 'log "Transfer-scriptet blev afbrudt."; exit 1' INT TERM
+trap 'log "The transfer script was interrupted."; exit 1' INT TERM
 
 
-# Undgå at flere kopier af scriptet kører samtidig.
+# Prevent multiple copies of the script from running at the same time.
 exec 9>"$LOCK_FILE"
 
 if ! flock -n 9; then
-    log "Transfer-scriptet kører allerede. Afslutter."
+    log "The transfer script is already running. Exiting."
     exit 0
 fi
 
 
 if [[ $EUID -ne 0 ]]; then
-    log "FEJL: Scriptet skal køres som root."
+    log "ERROR: The script must be run as root."
     set_failed_status
     exit 1
 fi
 
 
 if [[ ! -d "$LOCAL_BACKUP_DIR" ]]; then
-    log "FEJL: Den lokale backupmappe findes ikke: $LOCAL_BACKUP_DIR"
+    log "ERROR: The local backup directory does not exist: $LOCAL_BACKUP_DIR"
     set_failed_status
     exit 1
 fi
@@ -126,13 +126,13 @@ mapfile -d '' BACKUP_FILES < <(
 
 
 if (( ${#BACKUP_FILES[@]} == 0 )); then
-    log "Ingen lokale backups venter på overførsel."
+    log "No local backups are awaiting transfer."
     exit 0
 fi
 
 "$STATUS_UPDATER" \
     overall_status=running \
-    last_backup_result="Backup overføres til SMB-destinationen" \
+    last_backup_result="Backup is being transferred to the SMB destination" \
     pending_transfer=true \
     updated="$(date '+%Y-%m-%d %H:%M')"
 
@@ -141,16 +141,16 @@ mkdir -p "$MOUNT_POINT"
 
 
 if mountpoint -q "$MOUNT_POINT"; then
-    log "SMB-sharet er allerede monteret."
+    log "The SMB share is already mounted."
 else
-    log "Monterer ${REMOTE_SHARE} på ${MOUNT_POINT}."
+    log "Mounting ${REMOTE_SHARE} at ${MOUNT_POINT}."
 
     if ! mount -t cifs \
         "$REMOTE_SHARE" \
         "$MOUNT_POINT" \
         -o "$MOUNT_OPTIONS"
     then
-        log "FEJL: SMB-sharet kunne ikke monteres."
+        log "ERROR: The SMB share could not be mounted."
         set_failed_status
         exit 1
     fi
@@ -160,7 +160,7 @@ fi
 
 
 if [[ ! -w "$MOUNT_POINT" ]]; then
-    log "FEJL: Mountpunktet er ikke skrivbart."
+    log "ERROR: The mount point is not writable."
     set_failed_status
     exit 1
 fi
@@ -171,12 +171,12 @@ for source_file in "${BACKUP_FILES[@]}"; do
     destination_file="${MOUNT_POINT}/${filename}"
     temporary_file="${destination_file}.nosync"
 
-    log "Overfører ${filename}."
+    log "Transferring ${filename}."
 
     rm -f "$temporary_file"
 
     if ! cp --preserve=timestamps "$source_file" "$temporary_file"; then
-        log "FEJL: Kopiering af ${filename} mislykkedes."
+        log "ERROR: Copying ${filename} failed."
         rm -f "$temporary_file"
         continue
     fi
@@ -185,31 +185,31 @@ for source_file in "${BACKUP_FILES[@]}"; do
     remote_checksum="$(sha256sum "$temporary_file" | awk '{print $1}')"
 
     if [[ "$local_checksum" != "$remote_checksum" ]]; then
-        log "FEJL: Checksum stemmer ikke for ${filename}."
+        log "ERROR: Checksum mismatch for ${filename}."
         rm -f "$temporary_file"
         continue
     fi
 
     if ! mv "$temporary_file" "$destination_file"; then
-        log "FEJL: Kunne ikke færdiggøre ${filename} på SMB-destinationen."
+        log "ERROR: Could not finalize ${filename} at the SMB destination."
         rm -f "$temporary_file"
         continue
     fi
 
     if ! rm -f "$source_file"; then
-        log "ADVARSEL: Backupen blev overført, men den lokale fil kunne ikke slettes: ${filename}"
+        log "WARNING: The backup was transferred, but the local file could not be deleted: ${filename}"
         continue
     fi
 
     UPLOAD_SUCCEEDED=true
-    log "Overførsel verificeret. Lokal kopi slettet: ${filename}"
+    log "Transfer verified. Local copy deleted: ${filename}"
 done
 
 
-# Fjern kun gamle eksterne backups, hvis mindst én ny backup
-# blev overført og verificeret under denne kørsel.
+# Remove old remote backups only if at least one new backup
+# was transferred and verified during this run.
 if [[ "$UPLOAD_SUCCEEDED" == true ]]; then
-    log "Beholder de seneste ${RETENTION_COUNT} eksterne backups."
+    log "Keeping the latest ${RETENTION_COUNT} remote backups."
 
     mapfile -d '' REMOTE_BACKUPS < <(
         find "$MOUNT_POINT" \
@@ -227,23 +227,23 @@ if [[ "$UPLOAD_SUCCEEDED" == true ]]; then
             old_filename="$(basename "$old_backup")"
 
             if rm -f "$old_backup"; then
-                log "Slettede gammel ekstern backup: ${old_filename}"
+                log "Deleted old remote backup: ${old_filename}"
             else
-                log "ADVARSEL: Kunne ikke slette gammel ekstern backup: ${old_filename}"
+                log "WARNING: Could not delete old remote backup: ${old_filename}"
             fi
         done
     else
-        log "Der er ${#REMOTE_BACKUPS[@]} eksterne backups. Ingen oprydning nødvendig."
+        log "There are ${#REMOTE_BACKUPS[@]} remote backups. No cleanup is required."
     fi
 else
-    log "Ingen nye backups blev overført. Ekstern oprydning springes over."
+    log "No new backups were transferred. Skipping remote cleanup."
     exit 1
 fi
 
 "$STATUS_UPDATER" \
     overall_status=success \
-    last_backup_result="Backup overført til SMB-destinationen" \
+    last_backup_result="Backup transferred to the SMB destination" \
     pending_transfer=false \
     updated="$(date '+%Y-%m-%d %H:%M')"
 
-log "Transfer-scriptet er færdigt."
+log "The transfer script has finished."

@@ -3,14 +3,14 @@
 set -uo pipefail
 
 # ============================================================
-# Lokal backup
+# Local backup
 # ============================================================
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/backup.conf"
 
 if [[ ! -r "$CONFIG_FILE" ]]; then
-    printf 'FEJL: Konfigurationsfilen findes ikke eller kan ikke læses: %s\n' \
+    printf 'ERROR: The configuration file does not exist or cannot be read: %s\n' \
         "$CONFIG_FILE" >&2
     exit 1
 fi
@@ -28,7 +28,7 @@ REQUIRED_CONFIG_VALUES=(
 
 for config_value in "${REQUIRED_CONFIG_VALUES[@]}"; do
     if [[ -z "${!config_value:-}" ]]; then
-        printf 'FEJL: Den krævede konfigurationsværdi mangler: %s\n' \
+        printf 'ERROR: The required configuration value is missing: %s\n' \
             "$config_value" >&2
         exit 1
     fi
@@ -36,7 +36,7 @@ done
 
 if ! declare -p SOURCE_DIRS >/dev/null 2>&1 ||
     (( ${#SOURCE_DIRS[@]} == 0 )); then
-    printf 'FEJL: Den krævede konfigurationsværdi mangler: SOURCE_DIRS\n' >&2
+    printf 'ERROR: The required configuration value is missing: SOURCE_DIRS\n' >&2
     exit 1
 fi
 
@@ -62,7 +62,7 @@ BACKUP_SUCCESS=false
 mkdir -p "$BACKUP_DIR" "$LOG_DIR"
 
 # ------------------------------------------------------------
-# Funktioner
+# Functions
 # ------------------------------------------------------------
 
 log() {
@@ -129,7 +129,7 @@ start_containers_again() {
         return 0
     fi
 
-    log "INFO" "Starter tidligere kørende Docker-containere."
+    log "INFO" "Restarting previously running Docker containers."
 
     local restart_failed=false
     local container
@@ -141,11 +141,11 @@ start_containers_again() {
     done
 
     if [[ "$restart_failed" == false ]]; then
-        log "INFO" "Docker-containerne er startet igen."
+        log "INFO" "The Docker containers have been restarted."
         DOCKER_STOPPED=false
         return 0
     else
-        log "ERROR" "En eller flere Docker-containere kunne ikke startes."
+        log "ERROR" "One or more Docker containers could not be restarted."
         return 1
     fi
 }
@@ -171,26 +171,26 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 # ------------------------------------------------------------
-# Lås
+# Lock
 # ------------------------------------------------------------
 
 exec 9>"$LOCK_FILE"
 
 if ! flock -n 9; then
-    log "WARN" "Backup blev ikke startet, fordi et andet backup-job allerede kører."
+    log "WARN" "The backup was not started because another backup job is already running."
     exit 0
 fi
 
-log "INFO" "Backup-job startet."
+log "INFO" "Backup job started."
 
 write_status \
     "running" \
-    "Backup er i gang" \
+    "Backup is in progress" \
     "0 B" \
     "0"
 
 # ------------------------------------------------------------
-# Kontrollér om dagens backup allerede findes
+# Check whether today's backup already exists
 # ------------------------------------------------------------
 
 if [[ -f "$BACKUP_FILE" ]]; then
@@ -204,22 +204,22 @@ if [[ -f "$BACKUP_FILE" ]]; then
         BACKUP_SUCCESS=true
         existing_size="$(human_size "$BACKUP_FILE")"
 
-        log "INFO" "Dagens backup findes allerede: $BACKUP_NAME"
+        log "INFO" "Today's backup already exists: $BACKUP_NAME"
 
         write_status \
             "success" \
-            "Dagens backup fandtes allerede" \
+            "Today's backup already existed" \
             "$existing_size" \
             "0"
 
         exit 0
     fi
 
-    log "ERROR" "Dagens backupfil findes, men er ugyldig: $BACKUP_NAME"
+    log "ERROR" "Today's backup file exists but is invalid: $BACKUP_NAME"
 
     write_status \
         "failed" \
-        "Dagens backupfil er ugyldig" \
+        "Today's backup file is invalid" \
         "0 B" \
         "0"
 
@@ -229,7 +229,7 @@ fi
 rm -f "$PARTIAL_FILE"
 
 # ------------------------------------------------------------
-# Kontrollér kildemapper
+# Check source directories
 # ------------------------------------------------------------
 
 VALID_SOURCES=()
@@ -237,18 +237,18 @@ VALID_SOURCES=()
 for source in "${SOURCE_DIRS[@]}"; do
     if [[ -e "$source" ]]; then
         VALID_SOURCES+=("$source")
-        log "INFO" "Kilde inkluderet: $source"
+        log "INFO" "Source included: $source"
     else
-        log "WARN" "Kilden findes ikke og springes over: $source"
+        log "WARN" "The source does not exist and will be skipped: $source"
     fi
 done
 
 if (( ${#VALID_SOURCES[@]} == 0 )); then
-    log "ERROR" "Ingen gyldige kildemapper blev fundet."
+    log "ERROR" "No valid source directories were found."
 
     write_status \
         "failed" \
-        "Ingen gyldige kildemapper blev fundet" \
+        "No valid source directories were found" \
         "0 B" \
         "0"
 
@@ -256,10 +256,10 @@ if (( ${#VALID_SOURCES[@]} == 0 )); then
 fi
 
 # ------------------------------------------------------------
-# Kontrollér ledig plads
+# Check available space
 #
-# Vi kræver mindst kildernes ukomprimerede størrelse plus 1 GB.
-# Det er forsigtigt, men reducerer risikoen for en fyldt disk.
+# Require at least the sources' uncompressed size plus 1 GiB.
+# This is conservative, but reduces the risk of filling the disk.
 # ------------------------------------------------------------
 
 SOURCE_BYTES="$(du -sb "${VALID_SOURCES[@]}" 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
@@ -267,11 +267,11 @@ FREE_BYTES="$(df --output=avail -B1 "$BACKUP_DIR" | tail -n 1 | tr -d ' ')"
 REQUIRED_BYTES=$((SOURCE_BYTES + 1073741824))
 
 if (( FREE_BYTES < REQUIRED_BYTES )); then
-    log "ERROR" "Der er ikke tilstrækkelig ledig plads i $BACKUP_DIR."
+    log "ERROR" "There is not enough free space in $BACKUP_DIR."
 
     write_status \
         "failed" \
-        "Ikke tilstrækkelig ledig diskplads" \
+        "Insufficient free disk space" \
         "0 B" \
         "0"
 
@@ -279,7 +279,7 @@ if (( FREE_BYTES < REQUIRED_BYTES )); then
 fi
 
 # ------------------------------------------------------------
-# Stop kørende Docker-containere
+# Stop running Docker containers
 # ------------------------------------------------------------
 
 mapfile -t RUNNING_CONTAINERS < <(docker ps --format '{{.ID}}')
@@ -287,37 +287,37 @@ mapfile -t RUNNING_CONTAINERS < <(docker ps --format '{{.ID}}')
 DOCKER_STOP_START="$(date +%s)"
 
 if (( ${#RUNNING_CONTAINERS[@]} > 0 )); then
-    log "INFO" "Stopper ${#RUNNING_CONTAINERS[@]} kørende Docker-container(e)."
+    log "INFO" "Stopping ${#RUNNING_CONTAINERS[@]} running Docker container(s)."
 
-    # Restaurering er nødvendig, selv hvis docker stop kun lykkes
-    # for nogle af containerne og derefter returnerer en fejl.
+    # Restoration is required even if docker stop succeeds for only
+    # some of the containers and then returns an error.
     DOCKER_STOPPED=true
 
     if ! docker stop "${RUNNING_CONTAINERS[@]}" >/dev/null; then
-        log "ERROR" "Docker-containerne kunne ikke stoppes sikkert."
+        log "ERROR" "The Docker containers could not be stopped safely."
 
         write_status \
             "failed" \
-            "Docker-containerne kunne ikke stoppes" \
+            "The Docker containers could not be stopped" \
             "0 B" \
             "0"
 
         exit 1
     fi
 
-    log "INFO" "Docker-containerne er stoppet."
+    log "INFO" "The Docker containers have been stopped."
 else
-    log "INFO" "Ingen Docker-containere var i gang."
+    log "INFO" "No Docker containers were running."
 fi
 
 # ------------------------------------------------------------
-# Opret backup
+# Create backup
 #
-# --absolute-names bruges ikke. Derfor gemmes stierne relativt:
-# path/to/source/... i stedet for /path/to/source/...
+# --absolute-names is not used. Paths are therefore stored relatively:
+# path/to/source/... instead of /path/to/source/...
 # ------------------------------------------------------------
 
-log "INFO" "Opretter backup: $BACKUP_NAME"
+log "INFO" "Creating backup: $BACKUP_NAME"
 
 TAR_SOURCES=()
 
@@ -333,15 +333,15 @@ if tar \
     --one-file-system \
     "${TAR_SOURCES[@]}"; then
 
-    # Et hard link publicerer arkivet atomisk og fejler, hvis
-    # destinationsfilen allerede findes. Et eksisterende arkiv
-    # bliver derfor aldrig overskrevet.
+    # A hard link publishes the archive atomically and fails if
+    # the destination file already exists. An existing archive
+    # is therefore never overwritten.
     if ! ln "$PARTIAL_FILE" "$BACKUP_FILE"; then
-        log "ERROR" "Backupfilen kunne ikke færdiggøres sikkert."
+        log "ERROR" "The backup file could not be finalized safely."
 
         write_status \
             "failed" \
-            "Backupfilen kunne ikke færdiggøres sikkert" \
+            "The backup file could not be finalized safely" \
             "0 B" \
             "0"
 
@@ -354,12 +354,12 @@ if tar \
         --file="$BACKUP_FILE" \
         >/dev/null; then
 
-        log "ERROR" "Den færdige backupfil kunne ikke valideres."
+        log "ERROR" "The completed backup file could not be validated."
         rm -f "$BACKUP_FILE"
 
         write_status \
             "failed" \
-            "Den færdige backupfil kunne ikke valideres" \
+            "The completed backup file could not be validated" \
             "0 B" \
             "0"
 
@@ -369,13 +369,13 @@ if tar \
     rm -f "$PARTIAL_FILE"
     BACKUP_SUCCESS=true
 
-    log "INFO" "Backupfilen blev oprettet korrekt."
+    log "INFO" "The backup file was created successfully."
 else
-    log "ERROR" "Tar kunne ikke oprette backupfilen."
+    log "ERROR" "Tar could not create the backup file."
 
     write_status \
         "failed" \
-        "Backupfilen kunne ikke oprettes" \
+        "The backup file could not be created" \
         "0 B" \
         "0"
 
@@ -383,13 +383,13 @@ else
 fi
 
 # ------------------------------------------------------------
-# Start containerne igen
+# Restart the containers
 # ------------------------------------------------------------
 
 if ! start_containers_again; then
     write_status \
         "failed" \
-        "Docker-containerne kunne ikke startes" \
+        "The Docker containers could not be restarted" \
         "$(human_size "$BACKUP_FILE")" \
         "0"
 
@@ -402,15 +402,15 @@ DOCKER_DOWNTIME=$((DOCKER_STOP_END - DOCKER_STOP_START))
 BACKUP_SIZE="$(human_size "$BACKUP_FILE")"
 TOTAL_SECONDS=$(( $(date +%s) - START_SECONDS ))
 
-log "INFO" "Backup gennemført: $BACKUP_NAME"
-log "INFO" "Backupstørrelse: $BACKUP_SIZE"
-log "INFO" "Docker-nedetid: ${DOCKER_DOWNTIME} sekunder"
-log "INFO" "Samlet køretid: ${TOTAL_SECONDS} sekunder"
-log "INFO" "Backup afventer senere overførsel til SMB-destinationen."
+log "INFO" "Backup completed: $BACKUP_NAME"
+log "INFO" "Backup size: $BACKUP_SIZE"
+log "INFO" "Docker downtime: ${DOCKER_DOWNTIME} seconds"
+log "INFO" "Total runtime: ${TOTAL_SECONDS} seconds"
+log "INFO" "Backup is awaiting later transfer to the SMB destination."
 
 write_status \
     "pending" \
-    "Backup oprettet og afventer overførsel" \
+    "Backup created and awaiting transfer" \
     "$BACKUP_SIZE" \
     "$DOCKER_DOWNTIME"
 

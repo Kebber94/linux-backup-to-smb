@@ -227,7 +227,7 @@ Example:
   "overall_status": "success",
   "last_backup_started": "2026-07-25 16:39",
   "last_backup_finished": "2026-07-25 16:39",
-  "last_backup_result": "Backup overført til SMB-destinationen",
+  "last_backup_result": "Backup transferred to the SMB destination",
   "last_backup_file": "2026-07-25 - Backup of example-host.tar.gz",
   "last_backup_size": "4.0 KB",
   "docker_downtime_seconds": 0,
@@ -241,7 +241,7 @@ Example:
 | `overall_status` | string | Current overall state. Values written by the jobs include `running`, `pending`, `success`, and `failed`. |
 | `last_backup_started` | string | Local backup start time in `YYYY-MM-DD HH:MM` format. |
 | `last_backup_finished` | string | Time at which `backup.sh` last wrote its status. |
-| `last_backup_result` | string | Danish human-readable result from the most recent backup or transfer status update. |
+| `last_backup_result` | string | English human-readable result from the most recent backup or transfer status update. |
 | `last_backup_file` | string | Daily backup filename. |
 | `last_backup_size` | string | Human-readable archive size recorded by `backup.sh`. |
 | `docker_downtime_seconds` | integer | Measured Docker downtime between the stop and restart phases. |

@@ -17,29 +17,29 @@ STATUS_FILE = os.environ.get(
 STATUS_DIR = os.path.dirname(STATUS_FILE)
 LOCK_FILE = f"{STATUS_FILE}.lock"
 
-# Opret mappen hvis den ikke findes
+# Create the directory if it does not exist
 os.makedirs(STATUS_DIR, exist_ok=True)
 
-# Brug en separat, stabil låsefil, så låsen forbliver gyldig,
-# når statusfilen udskiftes atomisk.
+# Use a separate, stable lock file so the lock remains valid
+# when the status file is replaced atomically.
 with open(LOCK_FILE, "a", encoding="utf-8") as lock_file:
     fcntl.flock(lock_file, fcntl.LOCK_EX)
 
-    # Læs eksisterende status hvis den findes
+    # Read the existing status if it exists
     try:
         with open(STATUS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
         data = {}
 
-    # Opdater de felter der er sendt ind
+    # Update the fields supplied on the command line
     for argument in sys.argv[1:]:
         if "=" not in argument:
             continue
 
         key, value = argument.split("=", 1)
 
-        # Tom værdi betyder: slet feltet
+        # An empty value means: delete the field
         if value == "":
             data.pop(key, None)
         else:
@@ -67,8 +67,8 @@ with open(LOCK_FILE, "a", encoding="utf-8") as lock_file:
     )
 
     try:
-        # Gem status i samme mappe, flush og synkronisér den,
-        # før den eksisterende fil udskiftes atomisk.
+        # Save the status in the same directory, then flush and sync it
+        # before replacing the existing file atomically.
         with os.fdopen(file_descriptor, "w", encoding="utf-8") as f:
             os.fchmod(f.fileno(), status_mode)
             json.dump(data, f, ensure_ascii=False, indent=2)

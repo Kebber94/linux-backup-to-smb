@@ -1,42 +1,42 @@
 #!/usr/bin/env bash
 
-# Navnet på værten. Navnet indgår i backupfilens eksisterende filnavn.
+# The host name. It is included in the backup filename.
 HOST_NAME="example-host"
 
-# Mappen hvor lokale backup-arkiver oprettes og afventer overførsel.
+# The directory where local backup archives are created and await transfer.
 BACKUP_DIR="/path/to/local-backups"
 
-# Mapper der skal sikkerhedskopieres.
-# Mapper, der ikke findes, bliver sprunget over med en advarsel.
-# Undgå at medtage undermapper separat, hvis deres overmappe allerede er med.
+# Directories to back up.
+# Directories that do not exist are skipped with a warning.
+# Do not include child directories separately if their parent is already included.
 SOURCE_DIRS=(
     "/path/to/source-directory"
 #    "/path/to/another-source"
 )
 
-# SMB-sharet som lokale backup-arkiver overføres til.
+# The SMB share to which local backup archives are transferred.
 REMOTE_SHARE="//smb-server/share"
 
-# Det lokale mountpunkt som bruges til SMB-sharet.
+# The local mount point used for the SMB share.
 MOUNT_POINT="/path/to/mount-point"
 
-# Filen med brugernavn og adgangskode til SMB-sharet.
+# The file containing the username and password for the SMB share.
 CREDENTIALS_FILE="/path/to/smb-credentials"
 
-# Antallet af eksterne backup-arkiver der skal bevares.
+# The number of remote backup archives to retain.
 RETENTION_COUNT=4
 
-# Mappen hvor backup- og transfer-logfiler gemmes.
+# The directory where backup and transfer log files are stored.
 LOG_DIR="${SCRIPT_DIR}/logs"
 
-# Mappen hvor Homarr-kompatible statusdata gemmes.
+# The directory where Homarr-compatible status data is stored.
 DATA_DIR="${SCRIPT_DIR}/data"
 
-# Låsefilen som forhindrer flere samtidige lokale backup-job.
+# The lock file that prevents concurrent local backup jobs.
 BACKUP_LOCK_FILE="/run/lock/backup-create.lock"
 
-# Låsefilen som forhindrer flere samtidige transfer-job.
+# The lock file that prevents concurrent transfer jobs.
 TRANSFER_LOCK_FILE="/run/lock/backup-transfer.lock"
 
-# Mountindstillingerne til SMB-sharet, inklusive adgangsfil og filrettigheder.
+# Mount options for the SMB share, including the credentials file and permissions.
 MOUNT_OPTIONS="credentials=${CREDENTIALS_FILE},vers=3.0,iocharset=utf8,uid=0,gid=0,file_mode=0600,dir_mode=0700"
